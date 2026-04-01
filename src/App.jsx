@@ -36,7 +36,7 @@ const AuthProvider = ({ children }) => {
     const { data: existing } = await supabase.from('profiles').select('username').eq('username', username).single();
     if (existing) return "Username taken";
 
-    const { data, error } = await supabase.auth.signUp({ email: `${username}@heartsync.app`, password });
+    const { data, error } = await supabase.auth.signUp({ email: `${username}@tetramatch.app`, password });
     if (error) return error.message;
 
     const { error: pError } = await supabase.from('profiles').insert([
@@ -47,7 +47,7 @@ const AuthProvider = ({ children }) => {
   };
 
   const login = async (username, password) => {
-    const { error } = await supabase.auth.signInWithPassword({ email: `${username}@heartsync.app`, password });
+    const { error } = await supabase.auth.signInWithPassword({ email: `${username}@tetramatch.app`, password });
     if (error) return error.message;
     return null;
   };
@@ -110,9 +110,9 @@ const Input = ({ label, ...props }) => (
 const Landing = ({ onEnter }) => (
     <div style={{ minHeight: '100vh', background: 'radial-gradient(circle at 50% 30%, #2A1B3D 0%, #0D0D12 100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', textAlign: 'center' }}>
       <div style={{ background: '#FF4B6B', width: '80px', height: '80px', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px' }}>❤️</div>
-      <h1 style={{ fontSize: '48px', color: 'white', background: 'linear-gradient(135deg, #FF4B6B, #6C63FF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: '0 0 16px' }}>HeartSync</h1>
+      <h1 style={{ fontSize: '48px', color: 'white', background: 'linear-gradient(135deg, #FF4B6B, #6C63FF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: '0 0 16px' }}>Tetramatch</h1>
       <p style={{ color: '#94A3B8', marginBottom: '48px', maxWidth: '280px' }}>Join the community of authentic hearts.</p>
-      <Button onClick={onEnter} style={{ maxWidth: '300px' }}>Enter HeartSync</Button>
+      <Button onClick={onEnter} style={{ maxWidth: '300px' }}>Enter Tetramatch</Button>
     </div>
 );
 
@@ -132,7 +132,7 @@ const AuthScreen = ({ onNext }) => {
 
   return (
     <div style={{ minHeight: '100vh', background: '#0D0D12', padding: '40px 24px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-      <h2 style={{ fontSize: '32px', color: 'white', marginBottom: '8px' }}>{isLogin ? 'Welcome Back' : 'Join HeartSync'}</h2>
+      <h2 style={{ fontSize: '32px', color: 'white', marginBottom: '8px' }}>{isLogin ? 'Welcome Back' : 'Join Tetramatch'}</h2>
       <p style={{ color: '#94A3B8', marginBottom: '32px' }}>{isLogin ? 'Enter your credentials' : 'Create a unique identity'}</p>
       
       <Input label="Username" placeholder="e.g. helloworld" value={form.username} onChange={e => setForm({...form, username: e.target.value.toLowerCase()})} />
@@ -198,7 +198,7 @@ const Discovery = ({ onGoToChats }) => {
   return (
     <div style={{ minHeight: '100vh', background: '#0D0D12', padding: '24px', position: 'relative' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px', alignItems: 'center' }}>
-        <h2 style={{ color: 'white' }}>HeartSync</h2>
+        <h2 style={{ color: 'white' }}>Tetramatch</h2>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
             <button onClick={onGoToChats} style={{ color: '#FF4B6B', fontSize: '14px', fontWeight: 600 }}>Chats</button>
             <div style={{ background: '#1A1A24', padding: '4px 12px', borderRadius: '20px', fontSize: '14px', color: '#B0B0B0' }}>
@@ -215,7 +215,7 @@ const Discovery = ({ onGoToChats }) => {
             <img src={currentProfile.img_url || 'https://images.unsplash.com/photo-1511367461989-f85a21fda167?auto=format&fit=crop&q=80&w=600'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '24px', background: 'linear-gradient(to top, rgba(0,0,0,0.9), transparent)' }}>
                 <h3 style={{ color: 'white', fontSize: '24px' }}>{currentProfile.username}</h3>
-                <p style={{ color: '#D0D0D0' }}>{currentProfile.bio || 'New on HeartSync!'}</p>
+                <p style={{ color: '#D0D0D0' }}>{currentProfile.bio || 'New on Tetramatch!'}</p>
                 <div style={{ display: 'flex', gap: '16px', marginTop: '20px' }}>
                    <Button onClick={() => handleAction('pass')} variant="secondary" style={{ flex: 1 }}>Pass</Button>
                    <Button onClick={() => handleAction('like')} style={{ flex: 1 }}>Like</Button>
@@ -284,7 +284,7 @@ const AppContent = ({ screen, setScreen }) => {
         if (profile && (screen === 'auth' || screen === 'landing')) setScreen('discovery');
     }, [profile, screen, setScreen]);
 
-    if (loading) return <div style={{ minHeight: '100vh', background: '#0D0D12', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Connecting to HeartSync...</div>;
+    if (loading) return <div style={{ minHeight: '100vh', background: '#0D0D12', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Connecting to Tetramatch...</div>;
 
     if (screen === 'landing') return <Landing onEnter={() => setScreen('auth')} />;
     if (screen === 'auth') return <AuthScreen onNext={() => setScreen('discovery')} />;
