@@ -32,22 +32,28 @@ const AuthProvider = ({ children }) => {
   };
 
   const signup = async (username, password, gender) => {
-    // Check if username taken (simple client check, better in RPC/Trigger)
-    const { data: existing } = await supabase.from('profiles').select('username').eq('username', username).single();
+    const trimmedUsername = username.trim();
+    // Check if username taken
+    const { data: existing } = await supabase.from('profiles').select('username').eq('username', trimmedUsername).single();
     if (existing) return "Username taken";
 
-    const { data, error } = await supabase.auth.signUp({ email: `${username}@tetramatch.app`, password });
+    // Create virtual email if not already an email
+    const finalEmail = trimmedUsername.includes('@') ? trimmedUsername : `${trimmedUsername}@tetramatch.com`;
+
+    const { data, error } = await supabase.auth.signUp({ email: finalEmail, password });
     if (error) return error.message;
 
     const { error: pError } = await supabase.from('profiles').insert([
-      { id: data.user.id, username, gender, profiles_limit: 20 }
+      { id: data.user.id, username: trimmedUsername, gender, profiles_limit: 20 }
     ]);
     if (pError) return pError.message;
     return null;
   };
 
   const login = async (username, password) => {
-    const { error } = await supabase.auth.signInWithPassword({ email: `${username}@tetramatch.app`, password });
+    const trimmedUsername = username.trim();
+    const finalEmail = trimmedUsername.includes('@') ? trimmedUsername : `${trimmedUsername}@tetramatch.com`;
+    const { error } = await supabase.auth.signInWithPassword({ email: finalEmail, password });
     if (error) return error.message;
     return null;
   };
