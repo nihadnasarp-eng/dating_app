@@ -1,62 +1,67 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-
-// --- MOCK DATABASE (LocalStorage) ---
-const getStorage = (key) => JSON.parse(localStorage.getItem(key)) || [];
-const setStorage = (key, data) => localStorage.setItem(key, JSON.stringify(data));
-
-// Initialize Mock Profiles if empty
-if (getStorage('profiles').length === 0) {
-    setStorage('profiles', [
-        { id: 'p1', username: 'Sarah_Art', gender: 'female', bio: 'Digital artist into travel 🎨', img_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=600', profiles_limit: 100 },
-        { id: 'p2', username: 'Emma_Dev', gender: 'female', bio: 'Building cool apps with React!', img_url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=600', profiles_limit: 100 },
-        { id: 'p3', username: 'Alex_Explorer', gender: 'male', bio: 'Hiking, Surfing, and Coffee ☕', img_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=600', profiles_limit: 100 },
-        { id: 'p4', username: 'Jessica_Piano', gender: 'female', bio: 'Classical pianist looking for duets 🎹', img_url: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=600', profiles_limit: 100 }
-    ]);
-}
+import { supabase } from './supabase';
 
 // --- AUTH CONTEXT ---
 const AuthContext = createContext();
 const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(() => JSON.parse(localStorage.getItem('currentUser')) || null);
-  const [loading, setLoading] = useState(false);
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (session?.user) fetchProfile(session.user.id);
+      else setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      if (session?.user) fetchProfile(session.user.id);
+      else { setProfile(null); setLoading(false); }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const fetchProfile = async (id) => {
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', id).single();
+    if (!error) setProfile(data);
+    setLoading(false);
+  };
 
   const signup = async (username, password, gender) => {
-    const profiles = getStorage('profiles');
-    if (profiles.find(p => p.username === username)) return "Username taken";
-    
-    const newUser = { id: Date.now().toString(), username, password, gender, profiles_viewed: 0, profiles_limit: 20 };
-    profiles.push(newUser);
-    setStorage('profiles', profiles);
-    setUser(newUser);
-    localStorage.setItem('currentUser', JSON.stringify(newUser));
+    const trimmedUsername = username.trim().toLowerCase();
+    // Use .com domain for better compatibility with Supabase default settings
+    const finalEmail = trimmedUsername.includes('@') ? trimmedUsername : `${trimmedUsername}@tetramatch.com`;
+
+    const { data, error } = await supabase.auth.signUp({ email: finalEmail, password });
+    if (error) return error.message;
+
+    const { error: pError } = await supabase.from('profiles').insert([
+      { id: data.user.id, username: trimmedUsername, gender, profiles_limit: 20 }
+    ]);
+    if (pError) return pError.message;
     return null;
   };
 
   const login = async (username, password) => {
-    const profiles = getStorage('profiles');
-    const u = profiles.find(p => p.username === username && p.password === password);
-    if (!u) return "Invalid credentials";
-    setUser(u);
-    localStorage.setItem('currentUser', JSON.stringify(u));
+    const trimmedUsername = username.trim().toLowerCase();
+    const finalEmail = trimmedUsername.includes('@') ? trimmedUsername : `${trimmedUsername}@tetramatch.com`;
+    const { error } = await supabase.auth.signInWithPassword({ email: finalEmail, password });
+    if (error) return error.message;
     return null;
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('currentUser');
+  const logout = () => supabase.auth.signOut();
+
+  const updateProfile = async (updates) => {
+    const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
+    if (!error) setProfile({ ...profile, ...updates });
   };
 
-  const updateProfile = (updates) => {
-    const profiles = getStorage('profiles');
-    const updatedProfiles = profiles.map(p => p.id === user.id ? { ...p, ...updates } : p);
-    setStorage('profiles', updatedProfiles);
-    const updatedUser = { ...user, ...updates };
-    setUser(updatedUser);
-    localStorage.setItem('currentUser', JSON.stringify(updatedUser));
-  };
-
-  return <AuthContext.Provider value={{ user, loading, signup, login, logout, updateProfile }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, profile, loading, signup, login, logout, updateProfile }}>{children}</AuthContext.Provider>;
 };
 const useAuth = () => useContext(AuthContext);
 
@@ -105,7 +110,7 @@ const Input = ({ label, ...props }) => (
 
 // --- SCREENS ---
 const Landing = ({ onEnter }) => (
-    <div style={{ minHeight: '100vh', background: 'radial-gradient(circle at 50% 30%, #2A1B3D 100%, #0D0D12 100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', textAlign: 'center' }}>
+    <div style={{ minHeight: '100vh', background: 'radial-gradient(circle at 50% 30%, #2A1B3D 0%, #0D0D12 100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', textAlign: 'center' }}>
       <div style={{ background: '#FF4B6B', width: '80px', height: '80px', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px' }}>❤️</div>
       <h1 style={{ fontSize: '48px', color: 'white', background: 'linear-gradient(135deg, #FF4B6B, #6C63FF)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', margin: '0 0 16px' }}>Tetramatch</h1>
       <p style={{ color: '#94A3B8', marginBottom: '48px', maxWidth: '280px' }}>Join the community of authentic hearts.</p>
@@ -123,7 +128,7 @@ const AuthScreen = ({ onNext }) => {
   const handle = async () => {
     if (!form.username || !form.password) { setError("Fill all fields"); return; }
     setLoading(true);
-    const err = isLogin ? await login(form.username.trim(), form.password) : await signup(form.username.trim(), form.password, form.gender);
+    const err = isLogin ? await login(form.username, form.password) : await signup(form.username, form.password, form.gender);
     if (err) { setError(err); setLoading(false); } else onNext();
   };
 
@@ -132,7 +137,7 @@ const AuthScreen = ({ onNext }) => {
       <h2 style={{ fontSize: '32px', color: 'white', marginBottom: '8px' }}>{isLogin ? 'Welcome Back' : 'Join Tetramatch'}</h2>
       <p style={{ color: '#94A3B8', marginBottom: '32px' }}>{isLogin ? 'Enter your credentials' : 'Create a unique identity'}</p>
       
-      <Input label="Username" placeholder="e.g. helloworld" value={form.username} onChange={e => setForm({...form, username: e.target.value})} />
+      <Input label="Username" placeholder="e.g. helloword" value={form.username} onChange={e => setForm({...form, username: e.target.value})} />
       <Input label="Password" type="password" placeholder="••••••••" value={form.password} onChange={e => setForm({...form, password: e.target.value})} />
       
       {!isLogin && (
@@ -159,29 +164,38 @@ const AuthScreen = ({ onNext }) => {
 };
 
 const Discovery = ({ onGoToChats }) => {
-  const { user, updateProfile } = useAuth();
+  const { profile, updateProfile } = useAuth();
   const [profiles, setProfiles] = useState([]);
   const [idx, setIdx] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const all = getStorage('profiles');
-    setProfiles(all.filter(p => p.gender !== user.gender && p.id !== user.id));
-  }, [user]);
+    const fetchProfiles = async () => {
+      const { data } = await supabase.from('profiles')
+        .select('*')
+        .neq('gender', profile.gender)
+        .neq('id', profile.id)
+        .limit(20);
+      setProfiles(data || []);
+      setLoading(false);
+    };
+    if (profile) fetchProfiles();
+  }, [profile]);
 
   const currentProfile = profiles[idx % profiles.length];
-  const hasProfiles = user.gender === 'female' || user.profiles_viewed < user.profiles_limit;
+  const hasProfiles = profile.gender === 'female' || profile.profiles_viewed < profile.profiles_limit;
 
   const handleAction = async (type) => {
     if (type === 'like' && currentProfile) {
-        const likes = getStorage('likes');
-        likes.push({ from: user.id, to: currentProfile.id });
-        setStorage('likes', likes);
+        await supabase.from('likes').insert([{ from_user: profile.id, to_user: currentProfile.id }]);
         alert(`Match! You can now chat anonymously with ${currentProfile.username}.`);
     }
     const nextIdx = idx + 1;
     setIdx(nextIdx);
-    updateProfile({ profiles_viewed: user.profiles_viewed + 1 });
+    await updateProfile({ profiles_viewed: profile.profiles_viewed + 1 });
   };
+
+  if (loading) return <div style={{ minHeight: '100vh', background: '#0D0D12', color: 'white', textAlign: 'center', padding: '100px' }}>Connecting to cloud...</div>;
 
   return (
     <div style={{ minHeight: '100vh', background: '#0D0D12', padding: '24px', position: 'relative' }}>
@@ -190,14 +204,14 @@ const Discovery = ({ onGoToChats }) => {
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
             <button onClick={onGoToChats} style={{ color: '#FF4B6B', fontSize: '14px', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer' }}>Chats</button>
             <div style={{ background: '#1A1A24', padding: '4px 12px', borderRadius: '20px', fontSize: '14px', color: '#B0B0B0' }}>
-                {user.gender === 'male' ? `${Math.max(0, user.profiles_limit - user.profiles_viewed)} left` : 'Unlimited'}
+                {profile.gender === 'male' ? `${Math.max(0, profile.profiles_limit - profile.profiles_viewed)} left` : 'Unlimited'}
             </div>
         </div>
       </div>
 
       <AnimatePresence mode="wait">
         {!currentProfile ? (
-          <div style={{ color: '#94A3B8', textAlign: 'center', marginTop: '100px' }}>No matches found in your area yet.</div>
+          <div style={{ color: '#94A3B8', textAlign: 'center', marginTop: '100px' }}>No matches found in your area yet.🌻</div>
         ) : hasProfiles ? (
           <motion.div key={currentProfile.id} initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} style={{ position: 'relative', height: '550px', borderRadius: '24px', overflow: 'hidden' }}>
             <img src={currentProfile.img_url || 'https://images.unsplash.com/photo-1511367461989-f85a21fda167?auto=format&fit=crop&q=80&w=600'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -212,9 +226,9 @@ const Discovery = ({ onGoToChats }) => {
           </motion.div>
         ) : (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ height: '400px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', background: '#1A1A24', borderRadius: '24px', padding: '32px' }}>
-             <h3 style={{ color: 'white', marginBottom: '12px' }}>No More Profiles!</h3>
-             <p style={{ color: '#94A3B8', marginBottom: '32px' }}>Upgrade now to see 20 more people in your area.</p>
-             <Button onClick={() => updateProfile({ profiles_limit: user.profiles_limit + 20 })}>Get 20 more (40 INR)</Button>
+             <h2 style={{ color: 'white', marginBottom: '12px' }}>Profile Limit Reached!</h2>
+             <p style={{ color: '#94A3B8', marginBottom: '32px' }}>Upgrade to see 20 more profiles for only 40 INR.</p>
+             <Button onClick={() => updateProfile({ profiles_limit: profile.profiles_limit + 20 })}>Upgrade Now</Button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -223,15 +237,16 @@ const Discovery = ({ onGoToChats }) => {
 };
 
 const Chats = ({ onBack }) => {
-    const { user } = useAuth();
+    const { profile } = useAuth();
     const [matches, setMatches] = useState([]);
 
     useEffect(() => {
-        const likes = getStorage('likes');
-        const profiles = getStorage('profiles');
-        const myLikes = likes.filter(l => l.from === user.id);
-        setMatches(myLikes.map(l => profiles.find(p => p.id === l.to)));
-    }, [user]);
+        const fetchMatches = async () => {
+            const { data } = await supabase.from('likes').select('*, to_user:profiles!likes_to_user_fkey(*)').eq('from_user', profile.id);
+            setMatches(data || []);
+        };
+        if (profile) fetchMatches();
+    }, [profile]);
 
     return (
         <div style={{ minHeight: '100vh', background: '#0D0D12', padding: '24px' }}>
@@ -244,20 +259,23 @@ const Chats = ({ onBack }) => {
                 <div style={{ textAlign: 'center', marginTop: '100px', color: '#94A3B8' }}>No matches yet. Start swiping!</div>
             ) : (
                 <div style={{ display: 'grid', gridGap: '16px' }}>
-                    {matches.map((p) => (
-                        <div key={p?.id} style={{ background: '#1A1A24', padding: '16px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#333', overflow: 'hidden' }}>
-                                    <img src={p?.img_url || 'https://images.unsplash.com/photo-1511367461989-f85a21fda167?auto=format&fit=crop&q=80&w=48'} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(4px)' }} />
+                    {matches.map((m) => {
+                        const p = m.to_user;
+                        return (
+                            <div key={m.id} style={{ background: '#1A1A24', padding: '16px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#333', overflow: 'hidden' }}>
+                                        <img src={p?.img_url || 'https://images.unsplash.com/photo-1511367461989-f85a21fda167?auto=format&fit=crop&q=80&w=48'} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(4px)' }} />
+                                    </div>
+                                    <div>
+                                        <h4 style={{ color: 'white', margin: 0 }}>{p?.username || 'Unknown Heart'}</h4>
+                                        <p style={{ color: '#94A3B8', fontSize: '12px' }}>Chatting anonymously...</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h4 style={{ color: 'white', margin: 0 }}>{p?.username}</h4>
-                                    <p style={{ color: '#94A3B8', fontSize: '12px' }}>Chatting anonymously...</p>
-                                </div>
+                                <Button onClick={() => alert(`Contact shared! Reach ${p?.username} at: ${p?.contact_info || 'Not shared'}`)} variant="secondary" style={{ width: 'auto', padding: '8px 16px', fontSize: '12px' }}>Share Info</Button>
                             </div>
-                            <Button onClick={() => alert(`Contact shared! Reach ${p?.username} at: ${p?.contact_info || 'Not shared'}`)} variant="secondary" style={{ width: 'auto', padding: '8px 16px', fontSize: '12px' }}>Share</Button>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
         </div>
@@ -265,11 +283,11 @@ const Chats = ({ onBack }) => {
 }
 
 const AppContent = ({ screen, setScreen }) => {
-    const { user, loading } = useAuth();
+    const { user, profile, loading } = useAuth();
     
     useEffect(() => {
-        if (user && (screen === 'auth' || screen === 'landing')) setScreen('discovery');
-    }, [user, screen, setScreen]);
+        if (profile && (screen === 'auth' || screen === 'landing')) setScreen('discovery');
+    }, [profile, screen, setScreen]);
 
     if (loading) return <div style={{ minHeight: '100vh', background: '#0D0D12', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Connecting to Tetramatch...</div>;
 
